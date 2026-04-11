@@ -1,0 +1,15 @@
+# PyInstaller build artifacts
+build/
+dist/
+*.spec.bak
+
+# Compiled Python
+__pycache__/
+*.py[cod]
+
+# Runtime data
+history.json
+
+# OS
+.DS_Store
+Thumbs.db
