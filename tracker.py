@@ -357,6 +357,23 @@ class TimeTrackerWidget(tk.Tk):
         tk.Label(frame, text="Staffilocode", fg="black", bg="#EDEBE7", font=("Arial", 10, "bold")).pack(side=tk.LEFT)
         tk.Label(frame, text="— coding that spreads.", fg="black", bg="#EDEBE7", font=("Arial", 10, "italic")).pack(side=tk.LEFT)
 
+        # GitHub link
+        github_frame = tk.Frame(about_win, bg="#EDEBE7", cursor="hand2")
+        github_frame.pack(pady=(5, 0))
+        try:
+            gh_pil = Image.open(resource_path("github_logo.png")).resize((24, 24), Image.LANCZOS)
+            about_win._github_img = ImageTk.PhotoImage(gh_pil)
+            gh_icon = tk.Label(github_frame, image=about_win._github_img, bg="#EDEBE7", cursor="hand2")
+            gh_icon.pack(side=tk.LEFT, padx=(0, 5))
+        except Exception as e:
+            tk.Label(github_frame, text="[gh]", bg="#EDEBE7").pack(side=tk.LEFT, padx=(0, 5))
+        gh_link = tk.Label(github_frame, text="github.com/StaffiloCode", fg="#0066cc", bg="#EDEBE7",
+                           font=("Arial", 10, "underline"), cursor="hand2")
+        gh_link.pack(side=tk.LEFT)
+        for widget in github_frame.winfo_children():
+            widget.bind("<Button-1>", lambda e: webbrowser.open("https://github.com/StaffiloCode"))
+        github_frame.bind("<Button-1>", lambda e: webbrowser.open("https://github.com/StaffiloCode"))
+
         # Logo image
         logo_path = resource_path("logo.png")
         if os.path.exists(logo_path):
@@ -371,23 +388,6 @@ class TimeTrackerWidget(tk.Tk):
                 tk.Label(about_win, text=f"[Logo Error: {e}]", fg="red", bg="#EDEBE7").pack(pady=10)
         else:
             tk.Label(about_win, text="[logo.png not found]", fg="gray", bg="#EDEBE7").pack(pady=10)
-
-        # GitHub link
-        github_frame = tk.Frame(about_win, bg="#EDEBE7", cursor="hand2")
-        github_frame.pack(pady=(0, 15))
-        try:
-            gh_pil = Image.open(resource_path("github_logo.png")).resize((24, 24), Image.LANCZOS)
-            self._github_img = ImageTk.PhotoImage(gh_pil)
-            gh_icon = tk.Label(github_frame, image=self._github_img, bg="#EDEBE7", cursor="hand2")
-            gh_icon.pack(side=tk.LEFT, padx=(0, 5))
-        except Exception:
-            pass
-        gh_link = tk.Label(github_frame, text="github.com/StaffiloCode", fg="#0066cc", bg="#EDEBE7",
-                           font=("Arial", 10, "underline"), cursor="hand2")
-        gh_link.pack(side=tk.LEFT)
-        for widget in github_frame.winfo_children():
-            widget.bind("<Button-1>", lambda e: webbrowser.open("https://github.com/StaffiloCode"))
-        github_frame.bind("<Button-1>", lambda e: webbrowser.open("https://github.com/StaffiloCode"))
 
     def quit_app(self):
         if self.is_running:
