@@ -7,6 +7,7 @@ import os
 import ctypes
 import webbrowser
 from datetime import datetime
+from PIL import Image, ImageTk
 
 HISTORY_FILE = "history.json"
 
@@ -327,7 +328,7 @@ class TimeTrackerWidget(tk.Tk):
         self.about_win = tk.Toplevel(self)
         about_win = self.about_win
         about_win.title("About")
-        about_win.geometry("320x350")
+        about_win.geometry("320x400")
         about_win.configure(bg="#EDEBE7")
 
         try:
@@ -375,7 +376,8 @@ class TimeTrackerWidget(tk.Tk):
         github_frame = tk.Frame(about_win, bg="#EDEBE7", cursor="hand2")
         github_frame.pack(pady=(0, 15))
         try:
-            self._github_img = tk.PhotoImage(file=resource_path("github_logo.png"))
+            gh_pil = Image.open(resource_path("github_logo.png")).resize((24, 24), Image.LANCZOS)
+            self._github_img = ImageTk.PhotoImage(gh_pil)
             gh_icon = tk.Label(github_frame, image=self._github_img, bg="#EDEBE7", cursor="hand2")
             gh_icon.pack(side=tk.LEFT, padx=(0, 5))
         except Exception:
