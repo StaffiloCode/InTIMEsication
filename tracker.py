@@ -27,7 +27,7 @@ class TimeTrackerWidget(tk.Tk):
 
         # Window setup
         self.title("Time Tracker")
-        self.geometry("160x100")
+        self.geometry("200x130")
         self.configure(bg="#1e1e1e")
         self.attributes('-topmost', True)
         self.resizable(False, False)
@@ -88,14 +88,14 @@ class TimeTrackerWidget(tk.Tk):
         self.op_btn.bind("<Button-1>", lambda e: self.toggle_opacity_slider())
 
         # Pomodoro button
-        self.pomodoro_btn = tk.Label(self.header, text="🍅", bg="#333333", fg="white", font=("Arial", 10))
-        self.pomodoro_btn.pack(side=tk.LEFT, padx=5)
+        self.pomodoro_btn = tk.Label(self.header, text="🍅", bg="#333333", fg="white", font=("Arial", 11), pady=0, anchor="center")
+        self.pomodoro_btn.pack(side=tk.LEFT, padx=5, pady=(0, 6))
         self.pomodoro_btn.bind("<Button-1>", lambda e: self.toggle_pomodoro())
 
         self.overrideredirect(True)
 
         # Main time display (no seconds)
-        self.time_label = tk.Label(self, text="00:00", font=("Consolas", 28), bg="#1e1e1e", fg="#00ff00")
+        self.time_label = tk.Label(self, text="00:00:00", font=("Consolas", 22), bg="#1e1e1e", fg="#00ff00")
         self.time_label.pack(pady=(5, 0))
 
         # Pomodoro mini-timer (hidden by default)
@@ -111,14 +111,11 @@ class TimeTrackerWidget(tk.Tk):
         style.configure('TButton', background='#333333', foreground='white', borderwidth=1)
         style.map('TButton', background=[('active', '#555555')])
 
-        self.play_btn = tk.Button(self.controls, text="▶", bg="#333333", fg="white", bd=0, command=self.play, width=4)
+        self.play_btn = tk.Button(self.controls, text="▶", bg="#333333", fg="white", bd=0, command=self.toggle_play_pause, width=4)
         self.play_btn.grid(row=0, column=0, padx=5)
 
-        self.pause_btn = tk.Button(self.controls, text="⏸", bg="#333333", fg="white", bd=0, command=self.pause, width=4, state=tk.DISABLED)
-        self.pause_btn.grid(row=0, column=1, padx=5)
-
         self.stop_btn = tk.Button(self.controls, text="■", bg="#333333", fg="white", bd=0, command=self.stop, width=4, state=tk.DISABLED)
-        self.stop_btn.grid(row=0, column=2, padx=5)
+        self.stop_btn.grid(row=0, column=1, padx=5)
 
     # ── Movement ──────────────────────────────────────────────────────────────
 
@@ -171,7 +168,6 @@ class TimeTrackerWidget(tk.Tk):
 
         self.controls.configure(bg=bg_color)
         self.play_btn.configure(bg=btn_bg, fg=fg_color)
-        self.pause_btn.configure(bg=btn_bg, fg=fg_color)
         self.stop_btn.configure(bg=btn_bg, fg=fg_color)
 
     # ── Opacity ───────────────────────────────────────────────────────────────
@@ -188,7 +184,7 @@ class TimeTrackerWidget(tk.Tk):
 
         x = self.winfo_x()
         y = self.winfo_y() + self.winfo_height()
-        self.op_win.geometry(f"160x30+{x}+{y}")
+        self.op_win.geometry(f"200x30+{x}+{y}")
 
         slider = tk.Scale(self.op_win, from_=0.1, to=1.0, resolution=0.05, orient=tk.HORIZONTAL,
                           showvalue=0, command=self.change_opacity, bg=self.header.cget("bg"),
@@ -211,7 +207,16 @@ class TimeTrackerWidget(tk.Tk):
     def update_display(self):
         hours = self.elapsed_seconds // 3600
         minutes = (self.elapsed_seconds % 3600) // 60
-        self.time_label.config(text=f"{hours:02d}:{minutes:02d}")
+        seconds = self.elapsed_seconds % 60
+        self.time_label.config(text=f"{hours:02d}:{minutes:02d}:{seconds:02d}")
+
+    def toggle_play_pause(self):
+        if not self.is_running:
+            self.play()
+        elif not self.is_paused:
+            self.pause()
+        else:
+            self.play()
 
     def play(self):
         if not self.is_running:
@@ -226,8 +231,7 @@ class TimeTrackerWidget(tk.Tk):
         elif self.is_paused:
             self.is_paused = False
 
-        self.play_btn.config(state=tk.DISABLED)
-        self.pause_btn.config(state=tk.NORMAL)
+        self.play_btn.config(text="❚❚")
         self.stop_btn.config(state=tk.NORMAL)
         run_color = "#008800" if self.is_light_mode else "#00ff00"
         self.time_label.config(fg=run_color)
@@ -235,8 +239,7 @@ class TimeTrackerWidget(tk.Tk):
     def pause(self):
         if self.is_running and not self.is_paused:
             self.is_paused = True
-            self.play_btn.config(state=tk.NORMAL)
-            self.pause_btn.config(state=tk.DISABLED)
+            self.play_btn.config(text="▶")
             pause_color = "#d2691e" if self.is_light_mode else "#ffff00"
             self.time_label.config(fg=pause_color)
 
@@ -253,8 +256,7 @@ class TimeTrackerWidget(tk.Tk):
             self.elapsed_seconds = 0
             self.update_display()
 
-            self.play_btn.config(state=tk.NORMAL)
-            self.pause_btn.config(state=tk.DISABLED)
+            self.play_btn.config(text="▶")
             self.stop_btn.config(state=tk.DISABLED)
             self.time_label.config(fg="#000000" if self.is_light_mode else "#ffffff")
 
@@ -337,7 +339,7 @@ class TimeTrackerWidget(tk.Tk):
         win.attributes('-topmost', True)
         win.configure(bg="#1a1a2e")
 
-        w, h = 300, 180
+        w, h = 280, 200
         sx = self.winfo_screenwidth()
         sy = self.winfo_screenheight()
         x = sx - w - 20
@@ -354,15 +356,15 @@ class TimeTrackerWidget(tk.Tk):
 
         tk.Button(btn_frame, text="☕ Start break", bg="#4fc3f7", fg="#1a1a2e",
                   font=("Arial", 10, "bold"), bd=0, padx=8, pady=4,
-                  command=lambda: self._on_start_break(win)).grid(row=0, column=0, padx=5)
+                  command=lambda: self._on_start_break(win)).grid(row=0, column=0, padx=5, pady=(0, 6))
 
         tk.Button(btn_frame, text="⏱ Snooze 5m", bg="#555577", fg="white",
                   font=("Arial", 10), bd=0, padx=8, pady=4,
-                  command=lambda: self._on_snooze(win)).grid(row=0, column=1, padx=5)
+                  command=lambda: self._on_snooze(win)).grid(row=0, column=1, padx=5, pady=(0, 6))
 
         tk.Button(btn_frame, text="⏭ Skip", bg="#333344", fg="#aaaaaa",
                   font=("Arial", 10), bd=0, padx=8, pady=4,
-                  command=lambda: self._on_skip_break(win)).grid(row=0, column=2, padx=5)
+                  command=lambda: self._on_skip_break(win)).grid(row=1, column=0, columnspan=2, pady=0)
 
         # Flash the notification window border
         self._flash_window(win, 3)
