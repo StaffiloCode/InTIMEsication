@@ -10,6 +10,9 @@ from datetime import datetime
 from PIL import Image, ImageTk
 
 HISTORY_FILE = "history.json"
+POMODORO_WORK_SECONDS = 25 * 60
+POMODORO_BREAK_SECONDS = 5 * 60
+POMODORO_SNOOZE_SECONDS = 5 * 60
 
 def resource_path(relative_path):
     try:
@@ -21,14 +24,14 @@ def resource_path(relative_path):
 class TimeTrackerWidget(tk.Tk):
     def __init__(self):
         super().__init__()
-        
+
         # Window setup
         self.title("Time Tracker")
         self.geometry("160x100")
-        self.configure(bg="#1e1e1e") # Dark gray/black background
-        self.attributes('-topmost', True) # Keep on top like a widget
+        self.configure(bg="#1e1e1e")
+        self.attributes('-topmost', True)
         self.resizable(False, False)
-        
+
         # Variables
         self.is_running = False
         self.is_paused = False
@@ -39,56 +42,70 @@ class TimeTrackerWidget(tk.Tk):
         self.hist_win = None
         self.about_win = None
 
-        # App icon (transparent PNG)
+        # Pomodoro state
+        self.pomodoro_active = False
+        self.pomodoro_phase = "work"  # "work" or "break"
+        self.pomodoro_seconds = 0
+        self.pomodoro_job = None
+        self.pomodoro_notify_win = None
+
+        # App icon
         try:
             self._icon_img = tk.PhotoImage(file=resource_path("InTIMEsication_logo.png"))
             self.iconphoto(True, self._icon_img)
         except Exception:
             pass
-        
-        # UI Elements
-        # Drag handle / Header
+
+        # Header
         self.header = tk.Frame(self, bg="#333333", height=20, cursor="fleur")
         self.header.pack(fill=tk.X, side=tk.TOP)
         self.header.bind("<ButtonPress-1>", self.start_move)
         self.header.bind("<B1-Motion>", self.do_move)
-        
-        # Close button in header
+
+        # Close button
         self.close_btn = tk.Label(self.header, text="X", bg="#333333", fg="white", font=("Arial", 10, "bold"))
         self.close_btn.pack(side=tk.RIGHT, padx=5)
         self.close_btn.bind("<Button-1>", lambda e: self.quit_app())
-        
-        # History button in header
+
+        # History button
         self.hist_btn = tk.Label(self.header, text="H", bg="#333333", fg="white", font=("Arial", 10, "bold"))
         self.hist_btn.pack(side=tk.LEFT, padx=5)
         self.hist_btn.bind("<Button-1>", lambda e: self.show_history())
 
-        # About button in header
+        # About button
         self.about_btn = tk.Label(self.header, text="i", bg="#333333", fg="white", font=("Arial", 10, "bold"))
         self.about_btn.pack(side=tk.LEFT, padx=5)
         self.about_btn.bind("<Button-1>", lambda e: self.show_about())
 
-        # Theme button in header
+        # Theme button
         self.theme_btn = tk.Label(self.header, text="☀", bg="#333333", fg="white", font=("Arial", 10, "bold"))
         self.theme_btn.pack(side=tk.LEFT, padx=5)
         self.theme_btn.bind("<Button-1>", lambda e: self.toggle_theme())
-        
-        # Opacity button in header
+
+        # Opacity button
         self.op_btn = tk.Label(self.header, text="○", bg="#333333", fg="white", font=("Arial", 10, "bold"))
         self.op_btn.pack(side=tk.LEFT, padx=5)
         self.op_btn.bind("<Button-1>", lambda e: self.toggle_opacity_slider())
 
-        self.overrideredirect(True) # Remove windows borders
-        
-        # Time Display
-        self.time_label = tk.Label(self, text="00:00:00", font=("Consolas", 24), bg="#1e1e1e", fg="#00ff00")
-        self.time_label.pack(pady=5)
-        
+        # Pomodoro button
+        self.pomodoro_btn = tk.Label(self.header, text="🍅", bg="#333333", fg="white", font=("Arial", 10))
+        self.pomodoro_btn.pack(side=tk.LEFT, padx=5)
+        self.pomodoro_btn.bind("<Button-1>", lambda e: self.toggle_pomodoro())
+
+        self.overrideredirect(True)
+
+        # Main time display (no seconds)
+        self.time_label = tk.Label(self, text="00:00", font=("Consolas", 28), bg="#1e1e1e", fg="#00ff00")
+        self.time_label.pack(pady=(5, 0))
+
+        # Pomodoro mini-timer (hidden by default)
+        self.pomo_label = tk.Label(self, text="", font=("Consolas", 11), bg="#1e1e1e", fg="#ff6b6b")
+        self.pomo_label.pack(pady=(0, 2))
+
         # Controls Frame
         self.controls = tk.Frame(self, bg="#1e1e1e")
         self.controls.pack(pady=2)
-        
-        # Buttons
+
         style = ttk.Style()
         style.theme_use('default')
         style.configure('TButton', background='#333333', foreground='white', borderwidth=1)
@@ -96,12 +113,14 @@ class TimeTrackerWidget(tk.Tk):
 
         self.play_btn = tk.Button(self.controls, text="▶", bg="#333333", fg="white", bd=0, command=self.play, width=4)
         self.play_btn.grid(row=0, column=0, padx=5)
-        
+
         self.pause_btn = tk.Button(self.controls, text="⏸", bg="#333333", fg="white", bd=0, command=self.pause, width=4, state=tk.DISABLED)
         self.pause_btn.grid(row=0, column=1, padx=5)
-        
+
         self.stop_btn = tk.Button(self.controls, text="■", bg="#333333", fg="white", bd=0, command=self.stop, width=4, state=tk.DISABLED)
         self.stop_btn.grid(row=0, column=2, padx=5)
+
+    # ── Movement ──────────────────────────────────────────────────────────────
 
     def start_move(self, event):
         self.x = event.x
@@ -115,6 +134,8 @@ class TimeTrackerWidget(tk.Tk):
         x = self.winfo_x() + deltax
         y = self.winfo_y() + deltay
         self.geometry(f"+{x}+{y}")
+
+    # ── Theme ─────────────────────────────────────────────────────────────────
 
     def toggle_theme(self):
         self.is_light_mode = not self.is_light_mode
@@ -135,41 +156,42 @@ class TimeTrackerWidget(tk.Tk):
 
         self.configure(bg=bg_color)
         self.header.configure(bg=header_bg)
-        self.close_btn.configure(bg=header_bg, fg=header_fg)
-        self.hist_btn.configure(bg=header_bg, fg=header_fg)
-        self.about_btn.configure(bg=header_bg, fg=header_fg)
-        self.theme_btn.configure(bg=header_bg, fg=header_fg)
-        self.op_btn.configure(bg=header_bg, fg=header_fg)
-        
+        for w in (self.close_btn, self.hist_btn, self.about_btn,
+                  self.theme_btn, self.op_btn, self.pomodoro_btn):
+            w.configure(bg=header_bg, fg=header_fg)
+
         self.time_label.configure(bg=bg_color)
+        self.pomo_label.configure(bg=bg_color)
         if not self.is_running and not self.is_paused:
             self.time_label.configure(fg=fg_color)
         elif self.is_running and not self.is_paused:
             self.time_label.configure(fg="#008800" if self.is_light_mode else "#00ff00")
         elif self.is_paused:
             self.time_label.configure(fg="#d2691e" if self.is_light_mode else "#ffff00")
-            
+
         self.controls.configure(bg=bg_color)
         self.play_btn.configure(bg=btn_bg, fg=fg_color)
         self.pause_btn.configure(bg=btn_bg, fg=fg_color)
         self.stop_btn.configure(bg=btn_bg, fg=fg_color)
 
+    # ── Opacity ───────────────────────────────────────────────────────────────
+
     def toggle_opacity_slider(self):
         if hasattr(self, "op_win") and self.op_win.winfo_exists():
             self.op_win.destroy()
             return
-            
+
         self.op_win = tk.Toplevel(self)
         self.op_win.overrideredirect(True)
         self.op_win.attributes('-topmost', True)
         self.op_win.configure(bg=self.header.cget("bg"))
-        
+
         x = self.winfo_x()
         y = self.winfo_y() + self.winfo_height()
         self.op_win.geometry(f"160x30+{x}+{y}")
-        
-        slider = tk.Scale(self.op_win, from_=0.1, to=1.0, resolution=0.05, orient=tk.HORIZONTAL, 
-                          showvalue=0, command=self.change_opacity, bg=self.header.cget("bg"), 
+
+        slider = tk.Scale(self.op_win, from_=0.1, to=1.0, resolution=0.05, orient=tk.HORIZONTAL,
+                          showvalue=0, command=self.change_opacity, bg=self.header.cget("bg"),
                           bd=0, highlightthickness=0)
         slider.set(self.attributes('-alpha'))
         slider.pack(fill=tk.X, padx=10, pady=5)
@@ -177,69 +199,251 @@ class TimeTrackerWidget(tk.Tk):
     def change_opacity(self, val):
         self.attributes('-alpha', float(val))
 
+    # ── Main timer ────────────────────────────────────────────────────────────
+
     def update_timer(self):
         if self.is_running and not self.is_paused:
             self.elapsed_seconds += 1
             self.update_display()
-        
         if self.is_running:
             self.timer_job = self.after(1000, self.update_timer)
 
     def update_display(self):
         hours = self.elapsed_seconds // 3600
         minutes = (self.elapsed_seconds % 3600) // 60
-        seconds = self.elapsed_seconds % 60
-        self.time_label.config(text=f"{hours:02d}:{minutes:02d}:{seconds:02d}")
+        self.time_label.config(text=f"{hours:02d}:{minutes:02d}")
 
     def play(self):
         if not self.is_running:
-            # Start new session
             self.is_running = True
             self.is_paused = False
             self.elapsed_seconds = 0
             self.start_date_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             self.update_display()
             self.update_timer()
+            if self.pomodoro_active:
+                self._start_pomodoro_phase("work")
         elif self.is_paused:
-            # Resume session
             self.is_paused = False
-        
+
         self.play_btn.config(state=tk.DISABLED)
         self.pause_btn.config(state=tk.NORMAL)
         self.stop_btn.config(state=tk.NORMAL)
-        run_color = "#008800" if getattr(self, "is_light_mode", False) else "#00ff00"
-        self.time_label.config(fg=run_color) # Green when running
+        run_color = "#008800" if self.is_light_mode else "#00ff00"
+        self.time_label.config(fg=run_color)
 
     def pause(self):
         if self.is_running and not self.is_paused:
             self.is_paused = True
             self.play_btn.config(state=tk.NORMAL)
             self.pause_btn.config(state=tk.DISABLED)
-            pause_color = "#d2691e" if getattr(self, "is_light_mode", False) else "#ffff00"
-            self.time_label.config(fg=pause_color) # Yellow when paused
+            pause_color = "#d2691e" if self.is_light_mode else "#ffff00"
+            self.time_label.config(fg=pause_color)
 
     def stop(self):
         if self.is_running:
-            # Save session
-            session_duration = self.elapsed_seconds
-            self.save_session(self.start_date_str, session_duration)
-            
+            self.save_session(self.start_date_str, self.elapsed_seconds)
+
             self.is_running = False
             self.is_paused = False
             if self.timer_job:
                 self.after_cancel(self.timer_job)
                 self.timer_job = None
-                
+
             self.elapsed_seconds = 0
             self.update_display()
-            
+
             self.play_btn.config(state=tk.NORMAL)
             self.pause_btn.config(state=tk.DISABLED)
             self.stop_btn.config(state=tk.DISABLED)
-            if self.is_light_mode:
-                self.time_label.config(fg="#000000")
-            else:
-                self.time_label.config(fg="#ffffff")
+            self.time_label.config(fg="#000000" if self.is_light_mode else "#ffffff")
+
+            self._stop_pomodoro()
+
+    # ── Pomodoro ──────────────────────────────────────────────────────────────
+
+    def toggle_pomodoro(self):
+        if self.pomodoro_active:
+            self._stop_pomodoro()
+            self.pomodoro_btn.config(fg="white" if not self.is_light_mode else "#000000")
+        else:
+            self.pomodoro_active = True
+            self.pomodoro_btn.config(fg="#ff4444")
+            self.pomo_label.config(text="🍅 --:--")
+            if self.is_running and not self.is_paused:
+                self._start_pomodoro_phase("work")
+
+    def _stop_pomodoro(self):
+        self.pomodoro_active = False
+        self.pomodoro_phase = "work"
+        self.pomodoro_seconds = 0
+        if self.pomodoro_job:
+            self.after_cancel(self.pomodoro_job)
+            self.pomodoro_job = None
+        self.pomo_label.config(text="")
+        if self.pomodoro_notify_win and self.pomodoro_notify_win.winfo_exists():
+            self.pomodoro_notify_win.destroy()
+
+    def _start_pomodoro_phase(self, phase, seconds=None):
+        if self.pomodoro_job:
+            self.after_cancel(self.pomodoro_job)
+            self.pomodoro_job = None
+
+        self.pomodoro_phase = phase
+        if seconds is not None:
+            self.pomodoro_seconds = seconds
+        elif phase == "work":
+            self.pomodoro_seconds = POMODORO_WORK_SECONDS
+        else:
+            self.pomodoro_seconds = POMODORO_BREAK_SECONDS
+
+        self._update_pomodoro()
+
+    def _update_pomodoro(self):
+        if not self.pomodoro_active:
+            return
+        if self.is_paused or not self.is_running:
+            self.pomodoro_job = self.after(1000, self._update_pomodoro)
+            return
+
+        if self.pomodoro_seconds <= 0:
+            self._pomodoro_phase_ended()
+            return
+
+        self.pomodoro_seconds -= 1
+        minutes = self.pomodoro_seconds // 60
+        seconds = self.pomodoro_seconds % 60
+
+        if self.pomodoro_phase == "work":
+            self.pomo_label.config(text=f"🍅 {minutes:02d}:{seconds:02d}", fg="#ff6b6b")
+        else:
+            self.pomo_label.config(text=f"☕ {minutes:02d}:{seconds:02d}", fg="#4fc3f7")
+
+        self.pomodoro_job = self.after(1000, self._update_pomodoro)
+
+    def _pomodoro_phase_ended(self):
+        if self.pomodoro_phase == "work":
+            self._show_break_notification()
+        else:
+            self._show_work_notification()
+
+    def _show_break_notification(self):
+        self._play_alert()
+        self._close_notify_win()
+
+        win = tk.Toplevel(self)
+        self.pomodoro_notify_win = win
+        win.overrideredirect(True)
+        win.attributes('-topmost', True)
+        win.configure(bg="#1a1a2e")
+
+        w, h = 300, 180
+        sx = self.winfo_screenwidth()
+        sy = self.winfo_screenheight()
+        x = sx - w - 20
+        y = sy - h - 60
+        win.geometry(f"{w}x{h}+{x}+{y}")
+
+        tk.Label(win, text="🍅  Time for a break!", font=("Arial", 14, "bold"),
+                 bg="#1a1a2e", fg="white").pack(pady=(18, 4))
+        tk.Label(win, text="25 minutes of focus done.\nTake a 5-minute break.",
+                 font=("Arial", 10), bg="#1a1a2e", fg="#aaaaaa", justify=tk.CENTER).pack(pady=(0, 12))
+
+        btn_frame = tk.Frame(win, bg="#1a1a2e")
+        btn_frame.pack()
+
+        tk.Button(btn_frame, text="☕ Start break", bg="#4fc3f7", fg="#1a1a2e",
+                  font=("Arial", 10, "bold"), bd=0, padx=8, pady=4,
+                  command=lambda: self._on_start_break(win)).grid(row=0, column=0, padx=5)
+
+        tk.Button(btn_frame, text="⏱ Snooze 5m", bg="#555577", fg="white",
+                  font=("Arial", 10), bd=0, padx=8, pady=4,
+                  command=lambda: self._on_snooze(win)).grid(row=0, column=1, padx=5)
+
+        tk.Button(btn_frame, text="⏭ Skip", bg="#333344", fg="#aaaaaa",
+                  font=("Arial", 10), bd=0, padx=8, pady=4,
+                  command=lambda: self._on_skip_break(win)).grid(row=0, column=2, padx=5)
+
+        # Flash the notification window border
+        self._flash_window(win, 3)
+
+    def _show_work_notification(self):
+        self._play_alert()
+        self._close_notify_win()
+
+        win = tk.Toplevel(self)
+        self.pomodoro_notify_win = win
+        win.overrideredirect(True)
+        win.attributes('-topmost', True)
+        win.configure(bg="#1a2e1a")
+
+        w, h = 300, 160
+        sx = self.winfo_screenwidth()
+        sy = self.winfo_screenheight()
+        x = sx - w - 20
+        y = sy - h - 60
+        win.geometry(f"{w}x{h}+{x}+{y}")
+
+        tk.Label(win, text="💪  Break is over!", font=("Arial", 14, "bold"),
+                 bg="#1a2e1a", fg="white").pack(pady=(18, 4))
+        tk.Label(win, text="Ready to focus again?",
+                 font=("Arial", 10), bg="#1a2e1a", fg="#aaaaaa").pack(pady=(0, 12))
+
+        btn_frame = tk.Frame(win, bg="#1a2e1a")
+        btn_frame.pack()
+
+        tk.Button(btn_frame, text="▶ Start focus", bg="#66bb6a", fg="#1a2e1a",
+                  font=("Arial", 10, "bold"), bd=0, padx=8, pady=4,
+                  command=lambda: self._on_start_work(win)).grid(row=0, column=0, padx=5)
+
+        tk.Button(btn_frame, text="⏱ +5 min break", bg="#555577", fg="white",
+                  font=("Arial", 10), bd=0, padx=8, pady=4,
+                  command=lambda: self._on_extend_break(win)).grid(row=0, column=1, padx=5)
+
+        self._flash_window(win, 3)
+
+    def _on_start_break(self, win):
+        win.destroy()
+        self._start_pomodoro_phase("break")
+
+    def _on_snooze(self, win):
+        win.destroy()
+        self._start_pomodoro_phase("work", POMODORO_SNOOZE_SECONDS)
+
+    def _on_skip_break(self, win):
+        win.destroy()
+        self._start_pomodoro_phase("work")
+
+    def _on_start_work(self, win):
+        win.destroy()
+        self._start_pomodoro_phase("work")
+
+    def _on_extend_break(self, win):
+        win.destroy()
+        self._start_pomodoro_phase("break", POMODORO_SNOOZE_SECONDS)
+
+    def _close_notify_win(self):
+        if self.pomodoro_notify_win and self.pomodoro_notify_win.winfo_exists():
+            self.pomodoro_notify_win.destroy()
+
+    def _play_alert(self):
+        try:
+            import winsound
+            winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
+        except Exception:
+            pass
+
+    def _flash_window(self, win, times):
+        if times <= 0 or not win.winfo_exists():
+            return
+        current = win.cget("bg")
+        flash_color = "#ffffff"
+        original = current
+        win.configure(bg=flash_color)
+        self.after(120, lambda: win.configure(bg=original) if win.winfo_exists() else None)
+        self.after(240, lambda: self._flash_window(win, times - 1))
+
+    # ── History ───────────────────────────────────────────────────────────────
 
     def save_session(self, date_str, duration_seconds):
         history = []
@@ -249,18 +453,18 @@ class TimeTrackerWidget(tk.Tk):
                     history = json.load(f)
             except:
                 pass
-                
+
         hours = duration_seconds // 3600
         minutes = (duration_seconds % 3600) // 60
         seconds = duration_seconds % 60
         duration_str = f"{hours}h {minutes}m {seconds}s"
-        
+
         history.append({
             "date": getattr(self, "start_date_str", date_str),
             "duration_str": duration_str,
             "duration_seconds": duration_seconds
         })
-        
+
         with open(HISTORY_FILE, "w") as f:
             json.dump(history, f, indent=4)
 
@@ -281,8 +485,7 @@ class TimeTrackerWidget(tk.Tk):
         except Exception:
             pass
 
-        label = tk.Label(hist_win, text="Session History", fg="white", bg="#2d2d2d", font=("Arial", 14))
-        label.pack(pady=10)
+        tk.Label(hist_win, text="Session History", fg="white", bg="#2d2d2d", font=("Arial", 14)).pack(pady=10)
 
         clear_btn = tk.Button(hist_win, text="Clear history", bg="#333333", fg="white", bd=0,
                               command=lambda: self.clear_history(text_area))
@@ -319,6 +522,8 @@ class TimeTrackerWidget(tk.Tk):
             os.remove(HISTORY_FILE)
         self._refresh_history(text_area)
 
+    # ── About ─────────────────────────────────────────────────────────────────
+
     def show_about(self):
         if self.about_win is not None and self.about_win.winfo_exists():
             self.about_win.lift()
@@ -335,23 +540,13 @@ class TimeTrackerWidget(tk.Tk):
             about_win.iconphoto(False, self._icon_img)
         except Exception:
             pass
-        
-        # InTIMEsication (жирными чуть крупнее)
+
         tk.Label(about_win, text="InTIMEsication", fg="black", bg="#EDEBE7", font=("Arial", 14, "bold")).pack(pady=(15, 5))
-        
-        # The most contagious time tracker in the wild (курсив)
         tk.Label(about_win, text="The most contagious time tracker in the wild", fg="#505050", bg="#EDEBE7", font=("Arial", 10, "italic")).pack(pady=0)
-        
-        # Version 1.0.5
         tk.Label(about_win, text="Version 1.0.5", fg="black", bg="#EDEBE7", font=("Arial", 10)).pack(pady=10)
-        
-        # All rights reserved
         tk.Label(about_win, text="All rights reserved", fg="black", bg="#EDEBE7", font=("Arial", 10)).pack(pady=5)
-        
-        # Purely coded, naturally spread by Staffilocode
         tk.Label(about_win, text="Purely coded, naturally spread by Staffilocode", fg="black", bg="#EDEBE7", font=("Arial", 10)).pack(pady=5)
-        
-        # Staffilocode — coding that spreads.
+
         frame = tk.Frame(about_win, bg="#EDEBE7")
         frame.pack(pady=5)
         tk.Label(frame, text="Staffilocode", fg="black", bg="#EDEBE7", font=("Arial", 10, "bold")).pack(side=tk.LEFT)
@@ -365,7 +560,7 @@ class TimeTrackerWidget(tk.Tk):
             about_win._github_img = ImageTk.PhotoImage(gh_pil)
             gh_icon = tk.Label(github_frame, image=about_win._github_img, bg="#EDEBE7", cursor="hand2")
             gh_icon.pack(side=tk.LEFT, padx=(0, 5))
-        except Exception as e:
+        except Exception:
             tk.Label(github_frame, text="[gh]", bg="#EDEBE7").pack(side=tk.LEFT, padx=(0, 5))
         gh_link = tk.Label(github_frame, text="github.com/StaffiloCode", fg="#0066cc", bg="#EDEBE7",
                            font=("Arial", 10, "underline"), cursor="hand2")
@@ -374,12 +569,11 @@ class TimeTrackerWidget(tk.Tk):
             widget.bind("<Button-1>", lambda e: webbrowser.open("https://github.com/StaffiloCode"))
         github_frame.bind("<Button-1>", lambda e: webbrowser.open("https://github.com/StaffiloCode"))
 
-        # Logo image
+        # Logo
         logo_path = resource_path("logo.png")
         if os.path.exists(logo_path):
             try:
                 self.logo_img = tk.PhotoImage(file=logo_path)
-                # If image is very large, subsample it by 4
                 if self.logo_img.width() > 200:
                     sub_factor = self.logo_img.width() // 150
                     self.logo_img = self.logo_img.subsample(sub_factor, sub_factor)
@@ -389,21 +583,23 @@ class TimeTrackerWidget(tk.Tk):
         else:
             tk.Label(about_win, text="[logo.png not found]", fg="gray", bg="#EDEBE7").pack(pady=10)
 
+    # ── Quit ──────────────────────────────────────────────────────────────────
+
     def quit_app(self):
         if self.is_running:
             self.stop()
         self.destroy()
 
 if __name__ == "__main__":
-    
+
     mutex_name = "Global\\TimeTrackerAppMutex"
     mutex = ctypes.windll.kernel32.CreateMutexW(None, False, mutex_name)
     last_error = ctypes.windll.kernel32.GetLastError()
-    
-    if last_error == 183: # ERROR_ALREADY_EXISTS
+
+    if last_error == 183:  # ERROR_ALREADY_EXISTS
         hwnd = ctypes.windll.user32.FindWindowW(None, "Time Tracker")
         if hwnd:
-            ctypes.windll.user32.ShowWindow(hwnd, 9) # SW_RESTORE
+            ctypes.windll.user32.ShowWindow(hwnd, 9)
             ctypes.windll.user32.SetForegroundWindow(hwnd)
     else:
         app = TimeTrackerWidget()
