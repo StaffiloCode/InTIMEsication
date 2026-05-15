@@ -27,7 +27,7 @@ class TimeTrackerWidget(tk.Tk):
 
         # Window setup
         self.title("Time Tracker")
-        self.geometry("200x130")
+        self.geometry("240x140")
         self.configure(bg="#1e1e1e")
         self.attributes('-topmost', True)
         self.resizable(False, False)
@@ -56,41 +56,48 @@ class TimeTrackerWidget(tk.Tk):
         except Exception:
             pass
 
-        # Header
-        self.header = tk.Frame(self, bg="#333333", height=20, cursor="fleur")
+        # Header — airy minimalist toolbar
+        self._header_bg_dark = "#252526"
+        self._header_bg_light = "#f5f5f5"
+        self._header_fg_dark = "#cccccc"
+        self._header_fg_light = "#505050"
+        self._header_hover_dark = "#3a3a3c"
+        self._header_hover_light = "#e4e4e4"
+
+        self.header = tk.Frame(self, bg=self._header_bg_dark, height=28, cursor="fleur")
         self.header.pack(fill=tk.X, side=tk.TOP)
         self.header.bind("<ButtonPress-1>", self.start_move)
         self.header.bind("<B1-Motion>", self.do_move)
 
-        # Close button
-        self.close_btn = tk.Label(self.header, text="X", bg="#333333", fg="white", font=("Arial", 10, "bold"))
-        self.close_btn.pack(side=tk.RIGHT, padx=5)
-        self.close_btn.bind("<Button-1>", lambda e: self.quit_app())
+        # Track header buttons for theme/hover handling
+        self._header_buttons = []
 
-        # History button
-        self.hist_btn = tk.Label(self.header, text="H", bg="#333333", fg="white", font=("Arial", 10, "bold"))
-        self.hist_btn.pack(side=tk.LEFT, padx=5)
-        self.hist_btn.bind("<Button-1>", lambda e: self.show_history())
+        icon_font = ("Segoe UI Symbol", 11)
 
-        # About button
-        self.about_btn = tk.Label(self.header, text="i", bg="#333333", fg="white", font=("Arial", 10, "bold"))
-        self.about_btn.pack(side=tk.LEFT, padx=5)
-        self.about_btn.bind("<Button-1>", lambda e: self.show_about())
+        # Close button (right side, accent on hover) — same font size as other icons
+        self.close_btn = self._make_header_button("×", self.quit_app, font=icon_font, accent="#e81123")
+        self.close_btn.pack(side=tk.RIGHT, padx=(2, 6), pady=2)
 
-        # Theme button
-        self.theme_btn = tk.Label(self.header, text="☀", bg="#333333", fg="white", font=("Arial", 10, "bold"))
-        self.theme_btn.pack(side=tk.LEFT, padx=5)
-        self.theme_btn.bind("<Button-1>", lambda e: self.toggle_theme())
+        # Left group: History, About
+        self.hist_btn = self._make_header_button("H", self.show_history, font=icon_font)
+        self.hist_btn.pack(side=tk.LEFT, padx=(6, 2), pady=2)
 
-        # Opacity button
-        self.op_btn = tk.Label(self.header, text="○", bg="#333333", fg="white", font=("Arial", 10, "bold"))
-        self.op_btn.pack(side=tk.LEFT, padx=5)
-        self.op_btn.bind("<Button-1>", lambda e: self.toggle_opacity_slider())
+        self.about_btn = self._make_header_button("ℹ", self.show_about, font=icon_font)  # ℹ info
+        self.about_btn.pack(side=tk.LEFT, padx=2, pady=2)
 
-        # Pomodoro button
-        self.pomodoro_btn = tk.Label(self.header, text="🍅", bg="#333333", fg="white", font=("Arial", 11), pady=0, anchor="center")
-        self.pomodoro_btn.pack(side=tk.LEFT, padx=5, pady=(0, 6))
-        self.pomodoro_btn.bind("<Button-1>", lambda e: self.toggle_pomodoro())
+        # Separator
+        self._sep1 = tk.Frame(self.header, bg="#3a3a3c", width=1)
+        self._sep1.pack(side=tk.LEFT, fill=tk.Y, padx=4, pady=6)
+
+        # Middle group: Theme, Opacity, Pomodoro
+        self.theme_btn = self._make_header_button("☼", self.toggle_theme, font=icon_font)  # ☼ sun
+        self.theme_btn.pack(side=tk.LEFT, padx=2, pady=2)
+
+        self.op_btn = self._make_header_button("○", self.toggle_opacity_slider, font=icon_font)  # ○
+        self.op_btn.pack(side=tk.LEFT, padx=2, pady=2)
+
+        self.pomodoro_btn = self._make_header_button("◐", self.toggle_pomodoro, font=icon_font)  # ◐ focus disc
+        self.pomodoro_btn.pack(side=tk.LEFT, padx=2, pady=2)
 
         self.overrideredirect(True)
 
@@ -111,11 +118,56 @@ class TimeTrackerWidget(tk.Tk):
         style.configure('TButton', background='#333333', foreground='white', borderwidth=1)
         style.map('TButton', background=[('active', '#555555')])
 
-        self.play_btn = tk.Button(self.controls, text="▶", bg="#333333", fg="white", bd=0, command=self.toggle_play_pause, width=4)
-        self.play_btn.grid(row=0, column=0, padx=5)
+        self.play_btn = tk.Button(self.controls, text="▶", bg="#2d2d2d", fg="white", bd=0,
+                                  activebackground="#3a3a3c", activeforeground="white",
+                                  command=self.toggle_play_pause, width=4, cursor="hand2",
+                                  font=("Segoe UI Symbol", 10))
+        self.play_btn.grid(row=0, column=0, padx=6)
 
-        self.stop_btn = tk.Button(self.controls, text="■", bg="#333333", fg="white", bd=0, command=self.stop, width=4, state=tk.DISABLED)
-        self.stop_btn.grid(row=0, column=1, padx=5)
+        self.stop_btn = tk.Button(self.controls, text="■", bg="#2d2d2d", fg="white", bd=0,
+                                  activebackground="#3a3a3c", activeforeground="white",
+                                  command=self.stop, width=4, state=tk.DISABLED, cursor="hand2",
+                                  font=("Segoe UI Symbol", 10))
+        self.stop_btn.grid(row=0, column=1, padx=6)
+
+    # ── Header buttons ────────────────────────────────────────────────────────
+
+    def _make_header_button(self, text, command, font=None, accent=None):
+        """Create an airy header button: hand cursor, hover background, optional accent color on hover."""
+        bg = self.header.cget("bg")
+        fg = self._header_fg_dark
+        btn = tk.Label(
+            self.header,
+            text=text,
+            bg=bg,
+            fg=fg,
+            font=font or ("Segoe UI Symbol", 11),
+            width=2,
+            anchor="center",
+            pady=2,
+            cursor="hand2",
+        )
+        btn._cmd = command
+        btn._accent = accent  # special hover color (e.g. red for close)
+        btn.bind("<Button-1>", lambda e, c=command: c())
+        btn.bind("<Enter>", lambda e, b=btn: self._on_header_hover(b, True))
+        btn.bind("<Leave>", lambda e, b=btn: self._on_header_hover(b, False))
+        self._header_buttons.append(btn)
+        return btn
+
+    def _on_header_hover(self, btn, entering):
+        if entering:
+            if btn._accent:
+                btn.configure(bg=btn._accent, fg="white")
+            else:
+                hover = self._header_hover_light if self.is_light_mode else self._header_hover_dark
+                btn.configure(bg=hover)
+        else:
+            btn.configure(bg=self.header.cget("bg"),
+                          fg=self._header_fg_light if self.is_light_mode else self._header_fg_dark)
+            # Re-apply pomodoro active highlight if needed
+            if btn is self.pomodoro_btn and self.pomodoro_active:
+                btn.configure(fg="#ff6b6b")
 
     # ── Movement ──────────────────────────────────────────────────────────────
 
@@ -126,6 +178,7 @@ class TimeTrackerWidget(tk.Tk):
     def do_move(self, event):
         if hasattr(self, "op_win") and self.op_win.winfo_exists():
             self.op_win.destroy()
+            self._set_op_btn_active(False)
         deltax = event.x - self.x
         deltay = event.y - self.y
         x = self.winfo_x() + deltax
@@ -137,25 +190,29 @@ class TimeTrackerWidget(tk.Tk):
     def toggle_theme(self):
         self.is_light_mode = not self.is_light_mode
         if self.is_light_mode:
-            bg_color = "#f0f0f0"
-            fg_color = "#000000"
-            header_bg = "#dddddd"
-            header_fg = "#000000"
-            btn_bg = "#e0e0e0"
-            self.theme_btn.config(text="☾")
+            bg_color = "#fafafa"
+            fg_color = "#1a1a1a"
+            header_bg = self._header_bg_light
+            header_fg = self._header_fg_light
+            btn_bg = "#ececec"
+            sep_color = "#d0d0d0"
+            self.theme_btn.config(text="☽")
         else:
             bg_color = "#1e1e1e"
             fg_color = "white"
-            header_bg = "#333333"
-            header_fg = "white"
-            btn_bg = "#333333"
-            self.theme_btn.config(text="☀")
+            header_bg = self._header_bg_dark
+            header_fg = self._header_fg_dark
+            btn_bg = "#2d2d2d"
+            sep_color = "#3a3a3c"
+            self.theme_btn.config(text="☼")
 
         self.configure(bg=bg_color)
         self.header.configure(bg=header_bg)
-        for w in (self.close_btn, self.hist_btn, self.about_btn,
-                  self.theme_btn, self.op_btn, self.pomodoro_btn):
+        for w in self._header_buttons:
             w.configure(bg=header_bg, fg=header_fg)
+        self._sep1.configure(bg=sep_color)
+        if self.pomodoro_active:
+            self.pomodoro_btn.configure(fg="#ff6b6b")
 
         self.time_label.configure(bg=bg_color)
         self.pomo_label.configure(bg=bg_color)
@@ -175,8 +232,12 @@ class TimeTrackerWidget(tk.Tk):
     def toggle_opacity_slider(self):
         if hasattr(self, "op_win") and self.op_win.winfo_exists():
             self.op_win.destroy()
+            self._set_op_btn_active(False)
             return
 
+        self._set_op_btn_active(True)
+
+        win_w = self.winfo_width()
         self.op_win = tk.Toplevel(self)
         self.op_win.overrideredirect(True)
         self.op_win.attributes('-topmost', True)
@@ -184,13 +245,25 @@ class TimeTrackerWidget(tk.Tk):
 
         x = self.winfo_x()
         y = self.winfo_y() + self.winfo_height()
-        self.op_win.geometry(f"200x30+{x}+{y}")
+        self.op_win.geometry(f"{win_w}x30+{x}+{y}")
 
         slider = tk.Scale(self.op_win, from_=0.1, to=1.0, resolution=0.05, orient=tk.HORIZONTAL,
                           showvalue=0, command=self.change_opacity, bg=self.header.cget("bg"),
                           bd=0, highlightthickness=0)
         slider.set(self.attributes('-alpha'))
         slider.pack(fill=tk.X, padx=10, pady=5)
+
+        # Clear active state when slider window itself is destroyed
+        op_win_ref = self.op_win
+        self.op_win.bind("<Destroy>", lambda e: self._set_op_btn_active(False) if e.widget is op_win_ref else None)
+
+    def _set_op_btn_active(self, active):
+        if active:
+            # Clearly visible "pressed" state — brighter than hover, no border (border shifts neighbours)
+            pressed_bg = "#d0d0d0" if self.is_light_mode else "#5a5a5e"
+            self.op_btn.configure(bg=pressed_bg)
+        else:
+            self.op_btn.configure(bg=self.header.cget("bg"))
 
     def change_opacity(self, val):
         self.attributes('-alpha', float(val))
@@ -267,10 +340,12 @@ class TimeTrackerWidget(tk.Tk):
     def toggle_pomodoro(self):
         if self.pomodoro_active:
             self._stop_pomodoro()
-            self.pomodoro_btn.config(fg="white" if not self.is_light_mode else "#000000")
+            self.pomodoro_btn.config(
+                fg=self._header_fg_light if self.is_light_mode else self._header_fg_dark
+            )
         else:
             self.pomodoro_active = True
-            self.pomodoro_btn.config(fg="#ff4444")
+            self.pomodoro_btn.config(fg="#ff6b6b")
             self.pomo_label.config(text="🍅 --:--")
             if self.is_running and not self.is_paused:
                 self._start_pomodoro_phase("work")
@@ -545,7 +620,7 @@ class TimeTrackerWidget(tk.Tk):
 
         tk.Label(about_win, text="InTIMEsication", fg="black", bg="#EDEBE7", font=("Arial", 14, "bold")).pack(pady=(15, 5))
         tk.Label(about_win, text="The most contagious time tracker in the wild", fg="#505050", bg="#EDEBE7", font=("Arial", 10, "italic")).pack(pady=0)
-        tk.Label(about_win, text="Version 1.0.5", fg="black", bg="#EDEBE7", font=("Arial", 10)).pack(pady=10)
+        tk.Label(about_win, text="Version 1.1.0", fg="black", bg="#EDEBE7", font=("Arial", 10)).pack(pady=10)
         tk.Label(about_win, text="All rights reserved", fg="black", bg="#EDEBE7", font=("Arial", 10)).pack(pady=5)
         tk.Label(about_win, text="Purely coded, naturally spread by Staffilocode", fg="black", bg="#EDEBE7", font=("Arial", 10)).pack(pady=5)
 
@@ -554,22 +629,11 @@ class TimeTrackerWidget(tk.Tk):
         tk.Label(frame, text="Staffilocode", fg="black", bg="#EDEBE7", font=("Arial", 10, "bold")).pack(side=tk.LEFT)
         tk.Label(frame, text="— coding that spreads.", fg="black", bg="#EDEBE7", font=("Arial", 10, "italic")).pack(side=tk.LEFT)
 
-        # GitHub link
-        github_frame = tk.Frame(about_win, bg="#EDEBE7", cursor="hand2")
-        github_frame.pack(pady=(5, 0))
-        try:
-            gh_pil = Image.open(resource_path("github_logo.png")).resize((24, 24), Image.LANCZOS)
-            about_win._github_img = ImageTk.PhotoImage(gh_pil)
-            gh_icon = tk.Label(github_frame, image=about_win._github_img, bg="#EDEBE7", cursor="hand2")
-            gh_icon.pack(side=tk.LEFT, padx=(0, 5))
-        except Exception:
-            tk.Label(github_frame, text="[gh]", bg="#EDEBE7").pack(side=tk.LEFT, padx=(0, 5))
-        gh_link = tk.Label(github_frame, text="github.com/StaffiloCode", fg="#0066cc", bg="#EDEBE7",
-                           font=("Arial", 10, "underline"), cursor="hand2")
-        gh_link.pack(side=tk.LEFT)
-        for widget in github_frame.winfo_children():
-            widget.bind("<Button-1>", lambda e: webbrowser.open("https://github.com/StaffiloCode"))
-        github_frame.bind("<Button-1>", lambda e: webbrowser.open("https://github.com/StaffiloCode"))
+        # Website link
+        site_link = tk.Label(about_win, text="staffilocode.com", fg="#0066cc", bg="#EDEBE7",
+                             font=("Arial", 10, "underline"), cursor="hand2")
+        site_link.pack(pady=(5, 0))
+        site_link.bind("<Button-1>", lambda e: webbrowser.open("https://staffilocode.com"))
 
         # Logo
         logo_path = resource_path("logo.png")
